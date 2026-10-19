@@ -13,6 +13,9 @@ export default defineConfig({
       {
         test: {
           name: "unit",
+          // Set before tests import src/logger.ts so routine Fastify/Pino output
+          // does not swamp Vitest's test results. Integration logs stay enabled.
+          env: { LOG_LEVEL: "silent" },
           include: ["tests/**/*.test.ts"],
           exclude: ["tests/integration/**"],
         },
