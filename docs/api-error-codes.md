@@ -4,55 +4,55 @@ Every API failure returned by the TricklePay backend includes a stable, machine-
 
 ## Response Shape
 
-The server returns a JSON error object with stable \`code\`, a human-readable \`error\` and a \`requestId\` that corresponds to the \`reqId\` field in Fastify's structured logs:
+The server returns a JSON error object with stable `code`, a human-readable `error` and a `requestId` that corresponds to the `reqId` field in Fastify's structured logs:
 
-\`\`\`json
+```json
 {
   "code": "NOT_FOUND",
   "error": "Route GET /missing-path not found",
   "requestId": "client-trace-42"
 }
-\`\`\`
+```
 
-- \`code\` is derived from the HTTP response status; see the status mapping below.
-- \`error\` describes the failure. Server errors (HTTP 5xx) are redacted to \`internal server error\`.
-- \`requestId\` identifies the same request in server logs.
+- `code` is derived from the HTTP response status; see the status mapping below.
+- `error` describes the failure. Server errors (HTTP 5xx) are redacted to `internal server error`.
+- `requestId` identifies the same request in server logs.
 
 ## Error Codes and HTTP Statuses
 
-These are the error statuses currently produced by the API and its request-handling safeguards, according to \`src/error-redaction.ts\`, \`src/error-handlers.ts\` and \`src/server.ts\`:
+These are the error statuses currently produced by the API and its request-handling safeguards, according to `src/error-redaction.ts`, `src/error-handlers.ts` and `src/server.ts`:
 
-| HTTP status | \`code\` | When returned |
+| HTTP status | `code` | When returned |
 | --- | --- | --- |
-| **400 Bad Request** | \`VALIDATION_ERROR\` | Invalid query parameters, malformed input, or an overlong raw query string. |
-| **404 Not Found** | \`NOT_FOUND\` | Unknown API route or a requested stream that does not exist. |
-| **413 Payload Too Large** | \`REQUEST_ERROR\` | Fastify's request-body limit; currently a safeguard for future body-bearing routes (the API currently exposes GET routes only). |
-| **429 Too Many Requests** | \`REQUEST_ERROR\` | Fixed-window per-IP request rate limit; returns \`Retry-After\` with seconds until the window resets. |
-| **500+ Server Error** | \`INTERNAL_SERVER_ERROR\` | Unexpected internal server failure; sensitive details are not sent to the client. |
+| **400 Bad Request** | `VALIDATION_ERROR` | Invalid query parameters, malformed input, or an overlong raw query string. |
+| **404 Not Found** | `NOT_FOUND` | Unknown API route or a requested stream that does not exist. |
+| **413 Payload Too Large** | `REQUEST_ERROR` | Fastify's request-body limit; currently a safeguard for future body-bearing routes (the API currently exposes GET routes only). |
+| **429 Too Many Requests** | `REQUEST_ERROR` | Fixed-window per-IP request rate limit; returns `Retry-After` with seconds until the window resets. |
+| **500+ Server Error** | `INTERNAL_SERVER_ERROR` | Unexpected internal server failure; sensitive details are not sent to the client. |
 
-The current application does **not** define authentication/authorization or conflict responses with statuses 401, 403 or 409; they should not appear in the list of currently supported API responses. The \`errorCodeForStatus\` helper maps other unhandled 4xx statuses to \`REQUEST_ERROR\` should they be introduced in future.
+The current application does **not** define authentication/authorization or conflict responses with statuses 401, 403 or 409; they should not appear in the list of currently supported API responses. The `errorCodeForStatus` helper maps other unhandled 4xx statuses to `REQUEST_ERROR` should they be introduced in future.
 
 ### Example: rate-limit response (429)
 
-\`\`\`http
+```http
 HTTP/1.1 429 Too Many Requests
 Retry-After: 25
 Content-Type: application/json
-\`\`\`
+```
 
-\`\`\`json
+```json
 {
   "code": "REQUEST_ERROR",
   "error": "rate limit exceeded",
   "requestId": "req-abc123"
 }
-\`\`\`
+```
 
-Here \`25\` is an illustrative wait in **seconds**; the implementation rounds up the remaining fixed-window duration. Clients should honor the actual \`Retry-After\` header before retrying.
+Here `25` is an illustrative wait in **seconds**; the implementation rounds up the remaining fixed-window duration. Clients should honor the actual `Retry-After` header before retrying.
 
 ### Example: body-limit response (413)
 
-Fastify enforces \`BODY_LIMIT\` at the server level. If a future endpoint accepts an oversized request body, its status maps to \`REQUEST_ERROR\`; **there is no current POST upload route** to use as a 413 example.
+Fastify enforces `BODY_LIMIT` at the server level. If a future endpoint accepts an oversized request body, its status maps to `REQUEST_ERROR`; **there is no current POST upload route** to use as a 413 example.
 
 ---
 
