@@ -35,6 +35,31 @@ function optional(name: string, fallback: string): string {
   return value && value.trim() !== "" ? value : fallback;
 }
 
+// Accept one serialized browser origin; keep the existing "*" and "null"
+// special values. Empty (or whitespace-only) .env values must reflect origins,
+// just like an unset CORS_ORIGIN.
+function parseCorsOrigin(raw: string | undefined): string | true {
+  const value = raw?.trim();
+  if (!value) return true;
+  if (value === "*" || value === "null") return value;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("CORS_ORIGIN must be a single http(s) origin, e.g. https://app.example.com");
+  }
+  if (
+    (parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
+    parsed.origin !== value
+  ) {
+    throw new Error(
+      "CORS_ORIGIN must be a single http(s) origin without a path, trailing slash, or comma-separated values",
+    );
+  }
+  return value;
+}
+
 function integer(name: string, fallback: number): number {
   const raw = process.env[name];
   if (!raw || raw.trim() === "") return fallback;
@@ -150,6 +175,7 @@ export function validateStartLedger(startLedger: number, chainHead: number): voi
 export interface Config {
   readonly port: number;
   readonly host: string;
+  readonly corsOrigin?: string | true;
   readonly databaseUrl: string;
   readonly network: string;
   readonly networkPassphrase: string;
@@ -192,6 +218,7 @@ export function loadConfig(): Config {
   return {
     port: integer("PORT", 3000),
     host: optional("HOST", "0.0.0.0"),
+    corsOrigin: parseCorsOrigin(process.env.CORS_ORIGIN),
     databaseUrl: required("DATABASE_URL"),
     network,
     networkPassphrase,
@@ -278,6 +305,7 @@ export function describeConfig(config: Config): LoggedConfig {
   return {
     port: config.port,
     host: config.host,
+    corsOrigin: config.corsOrigin,
     // The only field carrying a secret.
     databaseUrl: redactDatabaseUrl(config.databaseUrl),
     network: config.network,
