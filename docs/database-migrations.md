@@ -118,6 +118,35 @@ The `Dockerfile` in this repository runs `prisma migrate deploy` automatically w
 
 When using `docker compose up`, migrations are applied automatically by the `api` service's entrypoint. No manual intervention is needed.
 
+## Checking for drift after migrations
+
+A successful `prisma migrate deploy` only proves that the migration files
+applied; it does **not** prove that the resulting database schema matches
+`prisma/schema.prisma`. Check against a disposable database containing
+the full migration history (never reset a production database for this):
+
+```bash
+# DATABASE_URL points to a clean, disposable PostgreSQL database.
+npx prisma migrate deploy
+npx prisma migrate diff \
+  --from-url "$DATABASE_URL" \
+  --to-schema-datamodel prisma/schema.prisma \
+  --exit-code
+```
+
+With the project's pinned Prisma 6 CLI, the diff exits **0** when the
+database and Prisma schema agree, **2** when there is drift, and **1** if
+the comparison fails. To inspect the SQL Prisma would propose, rerun it
+with `--script` instead of `--exit-code`.
+
+For example, `IndexedEvent.updatedAt` has an existing database default
+of `CURRENT_TIMESTAMP` from the
+`20260828120000_indexed_events` migration. Its Prisma field must declare
+`@default(now())` as well as `@updatedAt`; otherwise the diff suggests
+dropping a default that is already present in deployed databases. Correct
+the schema or introduce a **new** migration to resolve such mismatches.
+Do not edit a migration that may already have been applied.
+
 ## Typical Workflow
 
 ### Scenario 1: Adding a New Field
