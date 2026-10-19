@@ -8,7 +8,8 @@ vi.mock("pino", async (importOriginal) => {
   };
 });
 
-import { logger } from "../src/logger.js";
+import pino from "pino";
+import { buildLoggerSetup } from "../src/logger.js";
 
 describe("Logger Configuration", () => {
   afterEach(() => {
@@ -17,9 +18,11 @@ describe("Logger Configuration", () => {
 
   it("should honour the configured log level and format", () => {
     const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    // Unit project LOG_LEVEL is silent, so this test constructs an explicit
+    // info-level instance to check output without enabling other tests' logs.
+    const logger = pino(buildLoggerSetup({ LOG_LEVEL: "info" }).options);
     
-    // The default log level is "info".
-    // We expect debug messages to be suppressed and info messages to be emitted.
+    // Explicit info level: debug messages are suppressed and info is emitted.
     logger.debug("This is a debug message");
     logger.info("This is an info message");
     
