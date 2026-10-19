@@ -80,7 +80,9 @@ model IndexedEvent {
   // Ledger close time as a Unix timestamp in seconds when the event was emitted on-chain.
   closedAt        BigInt?
   createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  // Existing SQL migration supplies DEFAULT CURRENT_TIMESTAMP; mirror that
+  // database default so Prisma does not propose DROP DEFAULT on the next diff.
+  updatedAt       DateTime @default(now()) @updatedAt
 
   @@index([streamId, ledger])
   @@index([ledger])
