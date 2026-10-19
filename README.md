@@ -693,7 +693,7 @@ current template — copy it and fill in the required values.
 | `SOROBAN_RPC_URL` | No | *network dependent* | Soroban RPC endpoint. Defaults to the public endpoint for the selected network. |
 | `PORT` | No | `3000` | HTTP server listen port. |
 | `HOST` | No | `0.0.0.0` | HTTP server bind address. |
-| `CORS_ORIGIN` | No | - | Allowed browser origin for the web client. |
+| `CORS_ORIGIN` | No | Reflect requesting origin when **unset** | Single allowed frontend origin (scheme, host and optional port; no trailing slash). See [CORS configuration](#cors-configuration). |
 | `LOG_LEVEL` | No | `info` | Log verbosity (`trace`, `debug`, `info`, `warn`, `error`, `fatal`, `silent`). |
 | `LOG_PRETTY` | No | - | Set to `true` for human-readable development logs; requires the `pino-pretty` dev dependency. Output stays JSON when unset. |
 | `BODY_LIMIT` | No | `1048576` | Largest accepted request body in bytes. |
@@ -706,6 +706,23 @@ current template — copy it and fill in the required values.
 | `INDEXER_START_LEDGER` | No | `0` | Ledger to begin indexing from. `0` starts at the chain's latest ledger. |
 | `INDEXER_MAX_PAGES_PER_TICK` | No | `1000` | Maximum number of event pages fetched per poll tick. |
 | `STREAM_SUMMARY_CACHE_TTL_MS` | No | `2000` | Summary endpoint cache window in milliseconds. Set to `0` to disable caching. |
+
+### CORS configuration
+
+The API uses `@fastify/cors` in `src/server.ts` with `origin: process.env.CORS_ORIGIN ?? true`. Set the variable to a **single browser origin**, not a URL path or a comma-separated list.
+
+| Configuration | Runtime behavior |
+| --- | --- |
+| Variable **unset** | The plugin uses `origin: true` and reflects the requesting browser's `Origin`. This is convenient for local development; it is permissive. |
+| `CORS_ORIGIN=https://app.example.com` | The plugin emits this origin as the allowed origin. Browsers only accept the response for a matching requesting origin. |
+| `CORS_ORIGIN=http://localhost:5173` | Allows this exact local frontend origin (the port matters). |
+| `CORS_ORIGIN=` (explicitly empty) | Passed to the plugin as the empty string; it is **not** treated as unset and must not be used to request the permissive default. |
+| `CORS_ORIGIN=https://app.example.com/` | The trailing slash is not part of a browser origin; do not include it. |
+| `CORS_ORIGIN=https://a.example.com,https://b.example.com` | Not parsed into multiple allowed origins; the implementation passes this as a single string and browsers cannot match it as an origin. |
+
+**Correct format:** `scheme://hostname[:port]` (for example, `https://frontend.example.com` or `http://localhost:5173`), without a path, query string or trailing slash. The app currently has **no multi-origin allowlist parser**. If a deployment needs multiple permitted browser origins, that requires a code change rather than a comma-separated environment value.
+
+**Readable response headers:** CORS permits browsers to read a small set of standard response headers by default, such as `Content-Type`. Custom response headers (for example `x-request-id`, `ETag` or `Retry-After`) are **not automatically exposed** to JavaScript by `src/server.ts`: its CORS registration has no `exposedHeaders` setting. The structured error response still includes `requestId` in its JSON body, which JavaScript clients can read when the origin is allowed. Exposing additional headers requires an explicit `exposedHeaders` configuration.
 
 ### Switching to a different contract
 
