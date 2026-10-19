@@ -144,6 +144,41 @@ describe("loadConfig — default values for unset optional settings", () => {
   });
 });
 
+// A wrong passphrase selects a different Stellar network even when the RPC
+// endpoint is otherwise reachable. Assert the exact on-chain strings, not just
+// that each network maps to some nonempty value.
+describe("loadConfig — network passphrase mapping (#523)", () => {
+  it("uses the canonical Test SDF Network passphrase for testnet", () => {
+    withEnv({ NETWORK: "testnet" }, () => {
+      const config = loadConfig();
+      expect(config.network).toBe("testnet");
+      expect(config.networkPassphrase).toBe("Test SDF Network ; September 2015");
+    });
+  });
+
+  it("uses the canonical Public Global Stellar passphrase for mainnet", () => {
+    withEnv({ NETWORK: "mainnet" }, () => {
+      const config = loadConfig();
+      expect(config.network).toBe("mainnet");
+      expect(config.networkPassphrase).toBe("Public Global Stellar Network ; September 2015");
+    });
+  });
+
+  it("rejects an unrecognised network with the existing validation error", () => {
+    withEnv({ NETWORK: "staging" }, () => {
+      expect(() => loadConfig()).toThrow(
+        'Unknown NETWORK "staging"; expected "testnet" or "mainnet"',
+      );
+    });
+  });
+
+  it("keeps testnet passphrase when NETWORK is absent", () => {
+    withEnv({ NETWORK: undefined }, () => {
+      expect(loadConfig().networkPassphrase).toBe("Test SDF Network ; September 2015");
+    });
+  });
+});
+
 describe("loadConfig — STREAM_SUMMARY_CACHE_TTL_MS", () => {
   it("accepts a configured non-negative TTL", () => {
     withEnv({ STREAM_SUMMARY_CACHE_TTL_MS: "2500" }, () => {
