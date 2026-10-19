@@ -2,6 +2,61 @@
 
 Every API failure returned by the TricklePay backend includes a stable, machine-readable `code` alongside a human-readable message. This allows client developers to build robust error handling and branch on error categories without having to parse human-readable text.
 
+## Response Shape
+
+The server returns a JSON error object with stable \`code\`, a human-readable \`error\` and a \`requestId\` that corresponds to the \`reqId\` field in Fastify's structured logs:
+
+\`\`\`json
+{
+  "code": "NOT_FOUND",
+  "error": "Route GET /missing-path not found",
+  "requestId": "client-trace-42"
+}
+\`\`\`
+
+- \`code\` is derived from the HTTP response status; see the status mapping below.
+- \`error\` describes the failure. Server errors (HTTP 5xx) are redacted to \`internal server error\`.
+- \`requestId\` identifies the same request in server logs.
+
+## Error Codes and HTTP Statuses
+
+These are the error statuses currently produced by the API and its request-handling safeguards, according to \`src/error-redaction.ts\`, \`src/error-handlers.ts\` and \`src/server.ts\`:
+
+| HTTP status | \`code\` | When returned |
+| --- | --- | --- |
+| **400 Bad Request** | \`VALIDATION_ERROR\` | Invalid query parameters, malformed input, or an overlong raw query string. |
+| **404 Not Found** | \`NOT_FOUND\` | Unknown API route or a requested stream that does not exist. |
+| **413 Payload Too Large** | \`REQUEST_ERROR\` | Fastify's request-body limit; currently a safeguard for future body-bearing routes (the API currently exposes GET routes only). |
+| **429 Too Many Requests** | \`REQUEST_ERROR\` | Fixed-window per-IP request rate limit; returns \`Retry-After\` with seconds until the window resets. |
+| **500+ Server Error** | \`INTERNAL_SERVER_ERROR\` | Unexpected internal server failure; sensitive details are not sent to the client. |
+
+The current application does **not** define authentication/authorization or conflict responses with statuses 401, 403 or 409; they should not appear in the list of currently supported API responses. The \`errorCodeForStatus\` helper maps other unhandled 4xx statuses to \`REQUEST_ERROR\` should they be introduced in future.
+
+### Example: rate-limit response (429)
+
+\`\`\`http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 25
+Content-Type: application/json
+\`\`\`
+
+\`\`\`json
+{
+  "code": "REQUEST_ERROR",
+  "error": "rate limit exceeded",
+  "requestId": "req-abc123"
+}
+\`\`\`
+
+Here \`25\` is an illustrative wait in **seconds**; the implementation rounds up the remaining fixed-window duration. Clients should honor the actual \`Retry-After\` header before retrying.
+
+### Example: body-limit response (413)
+
+Fastify enforces \`BODY_LIMIT\` at the server level. If a future endpoint accepts an oversized request body, its status maps to \`REQUEST_ERROR\`; **there is no current POST upload route** to use as a 413 example.
+
+---
+
+
 ## Log Redaction Behaviour
 
 Error messages sent to clients are redacted to prevent leaking sensitive information such as database connection strings, internal hostnames, or stack traces. The full, unredacted error remains in the server log for operator diagnosis.
@@ -61,32 +116,3 @@ Exposing raw database or RPC errors to clients can leak:
 - SQL query structure and table names
 
 By redacting client responses while preserving full details server-side, operators retain the diagnostic information needed to fix failures without exposing sensitive infrastructure details to external callers.
-
-## Response Shape
-
-Error responses are returned as a JSON object with the following structure:
-
-```json
-{
-  "code": "NOT_FOUND",
-  "error": "Route GET /missing-path not found",
-  "requestId": "client-trace-42"
-}
-```
-
-- `code`: The stable error code (see below).
-- `error`: A human-readable error message. Note that for `INTERNAL_SERVER_ERROR`, original raw error details (such as stack traces or SQL fragments) are redacted for security, and a generic "internal server error" message is returned instead.
-- `requestId`: The request ID associated with the error (useful for correlating client errors with server-side logs).
-
-## Defined Error Codes
-
-The backend defines and returns the following error codes based on the HTTP status code of the failure:
-
-- `VALIDATION_ERROR`
-  - **Returned When:** The request is invalid or malformed (HTTP status `400`). This could be due to missing required fields, invalid parameters, or malformed request bodies.
-- `NOT_FOUND`
-  - **Returned When:** The requested resource or route cannot be found (HTTP status `404`).
-- `REQUEST_ERROR`
-  - **Returned When:** The request fails with any other 4xx client error (e.g., HTTP statuses `401`, `403`, `409`, etc.) that is not explicitly a `VALIDATION_ERROR` or `NOT_FOUND`.
-- `INTERNAL_SERVER_ERROR`
-  - **Returned When:** An unexpected server-side error occurs (HTTP status `500` and above). The original error message is logged internally with the request ID, but the client receives a safe, redacted message.
