@@ -10,6 +10,7 @@ import { type Config, describeConfig, redactDatabaseUrl } from "../src/config.js
 const CONFIG: Config = {
   port: 3000,
   host: "0.0.0.0",
+  corsOrigin: "https://app.example.com",
   databaseUrl: "postgresql://indexer:s3cr3t@db.internal:5432/tricklepay?schema=public",
   network: "testnet",
   networkPassphrase: "Test SDF Network ; September 2015",
@@ -33,6 +34,7 @@ const CONFIG: Config = {
 const EXPECTED_FIELDS = [
   "bodyLimit",
   "contractId",
+  "corsOrigin",
   "databaseUrl",
   "host",
   "maxBackoffMs",
@@ -94,6 +96,7 @@ describe("describeConfig", () => {
     expect(described).toMatchObject({
       port: 3000,
       host: "0.0.0.0",
+      corsOrigin: "https://app.example.com",
       network: "testnet",
       networkPassphrase: "Test SDF Network ; September 2015",
       rpcUrl: "https://soroban-testnet.stellar.org",
