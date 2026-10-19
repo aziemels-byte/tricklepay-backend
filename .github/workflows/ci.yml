@@ -66,6 +66,11 @@ jobs:
       - name: Validate Prisma migrations
         run: npx prisma migrate deploy
 
+      # prisma migrate deploy does not detect schema drift, only failed migrations.
+      # Exit 2 on a nonempty diff so future defaults/indexes cannot silently drift.
+      - name: Detect Prisma schema drift
+        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+
       # Confirm the generated client matches the schema after migration.
       - name: Verify generated client is in sync
         run: npx prisma generate
