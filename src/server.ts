@@ -153,7 +153,7 @@ export async function buildServer(config?: Partial<Config>): Promise<FastifyInst
   // awaited because Fastify defers plugin loading until ready/listen, which
   // keeps this builder synchronous for its callers.
   void app.register(cors, {
-    origin: process.env.CORS_ORIGIN ?? true,
+    origin: config?.corsOrigin ?? true,
   });
 
   // Register shared schemas so routes can reference them with { $ref: "$id" }.
