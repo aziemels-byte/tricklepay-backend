@@ -1,0 +1,34 @@
+name: Verify TricklePay docs PRs at exact heads
+on:
+  push:
+    branches: [ci/verify-three-docs-prs-20261020]
+    paths: [.github/workflows/verify-docs-prs.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  docs-acceptance:
+    if: github.repository == 'aziemels-byte/tricklepay-backend'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - pr: 604
+            sha: 4f015cb337deb187b081b6427bb101987230afa7
+          - pr: 605
+            sha: 0935b6fd9c972a53e0bf85d54d375614d919b75f
+          - pr: 607
+            sha: ec05b5b4e586d179e22f0c56e5de72d5ce37a4b0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
