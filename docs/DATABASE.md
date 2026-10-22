@@ -1,25 +1,31 @@
 # Database Requirements & Versioning
 
-TricklePay uses PostgreSQL through Prisma for its indexed stream state and related event data. This document distinguishes versions exercised by the repository from versions for which compatibility has not been verified.
+TricklePay stores its indexed stream state in PostgreSQL through Prisma. The repository configures the following versions; configuration and successful test execution are separate evidence.
 
-## Tested PostgreSQL versions
+## PostgreSQL version coverage
 
-| Environment | PostgreSQL version | Source |
+| Environment | Configured PostgreSQL version | Verification |
 | --- | --- | --- |
-| GitHub Actions integration tests | **16** | `.github/workflows/ci.yml` (`services.postgres.image: postgres:16`) |
-| Local development database | **17** | `docker-compose.yml` (`postgres:17-alpine`) |
-| Local integration-test database | **17** | `docker-compose.yml` (`postgres-test`, `postgres:17-alpine`) |
+| GitHub Actions | **16** (`postgres:16`) | The [CI workflow](../.github/workflows/ci.yml) runs Prisma migrations and the integration suite against this service. Check the workflow result for the commit being deployed. |
+| Local development | **17** (`postgres:17-alpine`) | Configured by the [Compose `postgres` service](../docker-compose.yml); this image declaration is not proof that a particular commit has passed tests on 17. |
+| Local integration tests | **17** (`postgres:17-alpine`) | Configured by the [Compose `postgres-test` service](../docker-compose.yml), enabled with the `test` profile. Run the integration suite explicitly to verify this configuration. |
 
-**Verified baseline:** PostgreSQL 16 is the oldest version exercised by the current repository CI configuration. PostgreSQL 17 is used by the supplied Docker Compose development and test services. The previous statement that PostgreSQL **15.0** was the minimum supported version and matched `postgres:15-alpine` was incorrect: neither the current CI workflow nor Docker Compose uses PostgreSQL 15.
+PostgreSQL 16 is the oldest version configured for the current CI suite. The repository does not establish a tested minimum version of PostgreSQL 15.0, nor does it use `postgres:15-alpine` in Compose. It also does not demonstrate compatibility with every later major version.
 
-Do not interpret this tested-version list as a guarantee that every later PostgreSQL major version has been exercised. If deploying on a different version, verify migrations and integration tests against that version before using it in production.
+## Verify a different version
 
-## Database features
+Before deploying a different database version, run the repository's migrations and integration suite against an isolated database on that version:
 
-TricklePay relies on PostgreSQL features used by its Prisma schema, migrations and stream-indexing queries, including UUID generation, JSON/JSONB data, and conflict-handling during updates. These features do **not**, by themselves, establish a PostgreSQL 15 minimum:
+```bash
+# DATABASE_URL must point to a disposable integration-test database.
+npx prisma migrate deploy
+npx vitest run --project integration
+```
 
-- `gen_random_uuid()` is available in PostgreSQL 13 and later.
-- JSONB support predates PostgreSQL 15.
-- `INSERT ... ON CONFLICT DO UPDATE` predates PostgreSQL 15.
+The integration suite clears its test tables. Use the [Compose test service](../docker-compose.yml) on port 5433 with its separate test database; do not point the suite at development or production data.
 
-Use the tested versions above when choosing a database for development or CI. When changing the database baseline, update the Compose images, CI service image and this document together.
+## Schema and compatibility
+
+The [Prisma schema](../prisma/schema.prisma) uses bigint identifiers and times, exact `Decimal(40, 0)` amounts, and relational indexes. These schema choices do not by themselves establish a minimum PostgreSQL major version. Do not infer a PostgreSQL 15 requirement from unsupported claims about UUID generation, JSONB, or PostgreSQL 15-specific upsert features.
+
+When changing version coverage, update the Compose images, CI service image and this document together, and record which versions actually passed migrations and integration tests.
