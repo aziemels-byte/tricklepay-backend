@@ -553,6 +553,7 @@ export const apiErrorSchema = {
         "VALIDATION_ERROR",
         "NOT_FOUND",
         "REQUEST_ERROR",
+        "SERVICE_UNAVAILABLE",
         "INTERNAL_SERVER_ERROR",
       ],
       description:

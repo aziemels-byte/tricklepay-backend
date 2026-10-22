@@ -47,10 +47,10 @@ describe("GET /streams with a repeated query parameter", () => {
 
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ sender: SENDER_B }),
+      expect.objectContaining({ sender: SENDER_B }), expect.any(BigInt),
     );
     expect(streamsRepo.listStreams).not.toHaveBeenCalledWith(
-      expect.objectContaining({ sender: SENDER_A }),
+      expect.objectContaining({ sender: SENDER_A }), expect.any(BigInt),
     );
   });
 
@@ -59,7 +59,7 @@ describe("GET /streams with a repeated query parameter", () => {
 
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ limit: 20 }),
+      expect.objectContaining({ limit: 20 }), expect.any(BigInt),
     );
     expect(response.json()).toMatchObject({ limit: 20 });
   });

@@ -15,7 +15,7 @@ describe("GET /streams/:id bounded read (#221)", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns 500 INTERNAL_SERVER_ERROR when the read exceeds its bound", async () => {
+  it("returns 503 SERVICE_UNAVAILABLE when the read exceeds its bound", async () => {
     const app = await buildServer();
     await app.register(streamRoutes);
 
@@ -29,8 +29,9 @@ describe("GET /streams/:id bounded read (#221)", () => {
     await vi.advanceTimersByTimeAsync(DEFAULT_QUERY_TIMEOUT_MS + 1);
     const response = await pending;
 
-    expect(response.statusCode).toBe(500);
-    expect(response.json().code).toBe("INTERNAL_SERVER_ERROR");
+    expect(response.statusCode).toBe(503);
+    expect(response.json().code).toBe("SERVICE_UNAVAILABLE");
+    expect(response.headers["retry-after"]).toBe("30");
     expect(response.json().requestId).toBeTruthy();
 
     await app.close();

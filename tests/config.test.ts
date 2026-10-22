@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   DEFAULT_MAX_BACKOFF_MS,
+  DEFAULT_CONNECTION_TIMEOUT_MS,
+  DEFAULT_KEEP_ALIVE_TIMEOUT_MS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
   DEFAULT_MAX_PAGES_PER_TICK,
   DEFAULT_RATE_LIMIT_MAX,
   DEFAULT_RATE_LIMIT_WINDOW_MS,
@@ -101,6 +104,9 @@ describe("loadConfig — default values for unset optional settings", () => {
         PORT: undefined,
         HOST: undefined,
         BODY_LIMIT: undefined,
+        CONNECTION_TIMEOUT_MS: undefined,
+        KEEP_ALIVE_TIMEOUT_MS: undefined,
+        REQUEST_TIMEOUT_MS: undefined,
         QUERY_STRING_LIMIT: undefined,
         INDEXER_POLL_INTERVAL_MS: undefined,
         INDEXER_START_LEDGER: undefined,
@@ -125,6 +131,9 @@ describe("loadConfig — default values for unset optional settings", () => {
           maxPagesPerTick: DEFAULT_MAX_PAGES_PER_TICK,
           summaryCacheTtlMs: DEFAULT_STREAM_SUMMARY_CACHE_TTL_MS,
           bodyLimit: 1048576,
+          connectionTimeoutMs: DEFAULT_CONNECTION_TIMEOUT_MS,
+          keepAliveTimeoutMs: DEFAULT_KEEP_ALIVE_TIMEOUT_MS,
+          requestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
           queryStringLimit: 2048,
           compressionThresholdBytes: DEFAULT_COMPRESSION_THRESHOLD_BYTES,
           trustedProxies: [],
@@ -141,6 +150,20 @@ describe("loadConfig — default values for unset optional settings", () => {
       expect(loadConfig()).toMatchObject({ rateLimitMax: 25, rateLimitWindowMs: 30000 });
     });
   });
+
+  it("loads custom server timeouts", () => {
+    withEnv({ CONNECTION_TIMEOUT_MS: "15000", KEEP_ALIVE_TIMEOUT_MS: "60000", REQUEST_TIMEOUT_MS: "20000" }, () => {
+      expect(loadConfig()).toMatchObject({
+        connectionTimeoutMs: 15000, keepAliveTimeoutMs: 60000, requestTimeoutMs: 20000,
+      });
+    });
+  });
+
+  it.each(["CONNECTION_TIMEOUT_MS", "KEEP_ALIVE_TIMEOUT_MS", "REQUEST_TIMEOUT_MS"])(
+    "rejects a negative %s", (name) => {
+      withEnv({ [name]: "-1" }, () => expect(() => loadConfig()).toThrow(`${name} must be a non-negative integer`));
+    },
+  );
 
   it("loads a custom readiness Retry-After value", () => {
     withEnv({ READINESS_RETRY_AFTER_SECONDS: "30" }, () => {

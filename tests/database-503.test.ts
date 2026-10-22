@@ -1,4 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import { Prisma } from "@prisma/client";
+
+import { describe, it, expect } from "vitest";
 import { buildServer } from "../src/server.js";
 import { QueryTimeoutError } from "../src/db.js";
 
@@ -8,7 +10,11 @@ describe("Database 503 error handling", () => {
 
     // Register a route that throws a database connection error
     app.get("/db-error", async () => {
-      const error = new Error("Can't reach database server at `localhost:5432` P1001");
+      const error = new Prisma.PrismaClientInitializationError(
+        "Can't reach database server at `localhost:5432`",
+        Prisma.prismaVersion.client,
+        "P1001",
+      );
       throw error;
     });
 
@@ -54,7 +60,9 @@ describe("Database 503 error handling", () => {
     const app = await buildServer({});
 
     app.get("/connection-refused", async () => {
-      const error = new Error("connect ECONNREFUSED 127.0.0.1:5432");
+      const error = Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:5432"), {
+        code: "ECONNREFUSED",
+      });
       throw error;
     });
 

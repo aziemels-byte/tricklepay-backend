@@ -81,6 +81,11 @@ export const DEFAULT_STREAM_SUMMARY_CACHE_TTL_MS = 2_000;
 export const DEFAULT_RATE_LIMIT_MAX = 100;
 export const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
 
+// Socket inactivity, keep-alive idle time, and request receive time limits.
+export const DEFAULT_CONNECTION_TIMEOUT_MS = 10_000;
+export const DEFAULT_KEEP_ALIVE_TIMEOUT_MS = 72_000;
+export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+
 // Default Retry-After, in seconds, advertised on a not-ready `/ready`
 // response. It tells orchestrators and load balancers how long to wait before
 // probing again, which is useful while a long backfill is still in progress.
@@ -236,6 +241,9 @@ export interface Config {
   readonly maxPagesPerTick: number;
   readonly summaryCacheTtlMs: number;
   readonly bodyLimit: number;
+  readonly connectionTimeoutMs: number;
+  readonly keepAliveTimeoutMs: number;
+  readonly requestTimeoutMs: number;
   readonly queryStringLimit: number;
   readonly compressionThresholdBytes: number;
   readonly trustedProxies: readonly string[];
@@ -309,6 +317,9 @@ export function loadConfig(): Config {
       DEFAULT_STREAM_SUMMARY_CACHE_TTL_MS,
     ),
     bodyLimit: integer("BODY_LIMIT", 1048576), // 1MB default
+    connectionTimeoutMs: integer("CONNECTION_TIMEOUT_MS", DEFAULT_CONNECTION_TIMEOUT_MS),
+    keepAliveTimeoutMs: integer("KEEP_ALIVE_TIMEOUT_MS", DEFAULT_KEEP_ALIVE_TIMEOUT_MS),
+    requestTimeoutMs: integer("REQUEST_TIMEOUT_MS", DEFAULT_REQUEST_TIMEOUT_MS),
     queryStringLimit: integer("QUERY_STRING_LIMIT", 2048), // 2KB default
     compressionThresholdBytes: integer(
       "COMPRESSION_THRESHOLD_BYTES",
@@ -395,12 +406,16 @@ export function describeConfig(config: Config): LoggedConfig {
     maxPagesPerTick: config.maxPagesPerTick,
     summaryCacheTtlMs: config.summaryCacheTtlMs,
     bodyLimit: config.bodyLimit,
+    connectionTimeoutMs: config.connectionTimeoutMs,
+    keepAliveTimeoutMs: config.keepAliveTimeoutMs,
+    requestTimeoutMs: config.requestTimeoutMs,
     queryStringLimit: config.queryStringLimit,
     compressionThresholdBytes: config.compressionThresholdBytes,
     trustedProxies: config.trustedProxies,
     // Undefined when rate limiting is not configured; pino omits the field.
     rateLimitMax: config.rateLimitMax,
     rateLimitWindowMs: config.rateLimitWindowMs,
+    maxTrackedRateLimitClients: config.maxTrackedRateLimitClients,
     // Never log the secret itself, only whether one is configured.
     metricsToken: config.metricsToken ? "[redacted]" : undefined,
     enableDocsUi: config.enableDocsUi,

@@ -137,3 +137,16 @@ describe("GET /streams includeTotal", () => {
     expect(streamsRepo.countStreams).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("GET /streams lifecycle status", () => {
+  it("passes the validated status and one clock value to list and count", async () => {
+    const response = await get("/streams?status=streaming&includeTotal=true");
+    expect(response.statusCode).toBe(200);
+    const [filter, now] = streamsRepo.listStreams.mock.calls[0];
+    expect(filter).toMatchObject({ status: "streaming" });
+    expect(typeof now).toBe("bigint");
+    expect(streamsRepo.countStreams).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "streaming" }), now,
+    );
+  });
+});

@@ -50,9 +50,15 @@ export function registerIndexerLagHook(app: FastifyInstance): void {
       return;
     }
 
-    const lag = await getLag();
-    if (lag !== null) {
-      reply.header("X-Indexer-Lag-Ledgers", lag.toString());
+    try {
+      const lag = await getLag();
+      if (lag !== null) {
+        reply.header("X-Indexer-Lag-Ledgers", lag.toString());
+      }
+    } catch (err: unknown) {
+      // Freshness metadata is optional; a failed lookup must not replace an
+      // otherwise valid response (including an existing error response).
+      request.log.debug({ err }, "indexer lag unavailable");
     }
   });
 }

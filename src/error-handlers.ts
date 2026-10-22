@@ -26,8 +26,12 @@ export function registerErrorHandlers(app: FastifyInstance): void {
   // reach the client (#74); the original error is logged server-side with
   // the request id for diagnosis.
   app.setErrorHandler((err: FastifyError, request, reply) => {
+    const databaseCode = err.code ??
+      ("errorCode" in err && typeof err.errorCode === "string" ? err.errorCode : undefined);
+    const databaseUnavailable = err.name === "QueryTimeoutError" ||
+      (databaseCode !== undefined && ["P1001", "P1002", "P1008", "P1017", "P2024", "ECONNREFUSED"].includes(databaseCode));
     const statusCode =
-      typeof err.statusCode === "number" && err.statusCode >= 400
+      databaseUnavailable ? 503 : typeof err.statusCode === "number" && err.statusCode >= 400
         ? err.statusCode
         : 500;
     if (statusCode >= 500) {
@@ -37,8 +41,9 @@ export function registerErrorHandlers(app: FastifyInstance): void {
       statusCode >= 500
         ? "internal server error"
         : redactErrorMessage(err.message);
+    if (databaseUnavailable) reply.header("Retry-After", "30");
     void reply.status(statusCode).send({
-      code: errorCodeForStatus(statusCode),
+      code: databaseUnavailable ? "SERVICE_UNAVAILABLE" : errorCodeForStatus(statusCode),
       error: message,
       requestId: request.id,
     });
