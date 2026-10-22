@@ -11,6 +11,7 @@
 import { Prisma, type Stream } from "@prisma/client";
 
 import { prisma, withQueryTimeout } from "../db.js";
+import { nowSeconds } from "../lib/time.js";
 import { indexedStreams } from "../metrics.js";
 
 export interface UpsertStreamInput {
@@ -327,7 +328,7 @@ export function statusWhere(status: StreamStatus, now: bigint): Prisma.StreamWhe
   }
 }
 
-export async function listStreams(filter: StreamFilter): Promise<StreamListResult> {
+export async function listStreams(filter: StreamFilter, now = nowSeconds()): Promise<StreamListResult> {
   const limit = filter.limit ?? 50;
   const useCursor = filter.cursor !== undefined;
   const take = limit + 1;
@@ -353,7 +354,7 @@ export async function listStreams(filter: StreamFilter): Promise<StreamListResul
 
 // Total number of streams matching the filter, ignoring limit and offset, so a
 // client can tell how many pages exist.
-export async function countStreams(filter: StreamFilter, now?: bigint): Promise<number> {
+export async function countStreams(filter: StreamFilter, now = nowSeconds()): Promise<number> {
   return withQueryTimeout(prisma.stream.count({ where: whereFromFilter(filter, now) }));
 }
 

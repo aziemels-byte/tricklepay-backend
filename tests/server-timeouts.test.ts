@@ -1,16 +1,19 @@
-import { describe, it, expect } from "vitest";
-import { buildServer } from "../src/server.js";
+import { connect } from "node:net";
+
+import { describe, expect, it } from "vitest";
+
 import {
   DEFAULT_CONNECTION_TIMEOUT_MS,
   DEFAULT_KEEP_ALIVE_TIMEOUT_MS,
   DEFAULT_REQUEST_TIMEOUT_MS,
 } from "../src/config.js";
+import { buildServer } from "../src/server.js";
 
 describe("Server timeouts", () => {
   it("applies default timeouts when not configured", async () => {
     const app = await buildServer({});
     
-    expect(app.server.connectionTimeout).toBe(DEFAULT_CONNECTION_TIMEOUT_MS);
+    expect(app.server.timeout).toBe(DEFAULT_CONNECTION_TIMEOUT_MS);
     expect(app.server.keepAliveTimeout).toBe(DEFAULT_KEEP_ALIVE_TIMEOUT_MS);
     expect(app.server.requestTimeout).toBe(DEFAULT_REQUEST_TIMEOUT_MS);
     
@@ -24,34 +27,36 @@ describe("Server timeouts", () => {
       requestTimeoutMs: 20000,
     });
     
-    expect(app.server.connectionTimeout).toBe(15000);
+    expect(app.server.timeout).toBe(15000);
     expect(app.server.keepAliveTimeout).toBe(60000);
     expect(app.server.requestTimeout).toBe(20000);
     
     await app.close();
   });
 
-  it("closes stalled requests after requestTimeout", async () => {
+  it("closes a stalled request after the socket inactivity timeout", async () => {
     const app = await buildServer({
-      requestTimeoutMs: 100,
+      connectionTimeoutMs: 100,
     });
-
-    await app.ready();
-
-    // Register a route that delays longer than the timeout
-    app.get("/slow", async (_request, reply) => {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      return reply.send({ ok: true });
-    });
-
-    const response = await app.inject({
-      method: "GET",
-      url: "/slow",
-    });
-
-    // Fastify terminates with 503 or 408 on request timeout
-    expect([408, 503]).toContain(response.statusCode);
-
-    await app.close();
+    await app.listen({ host: "127.0.0.1", port: 0 });
+    const address = app.server.address();
+    if (!address || typeof address === "string") throw new Error("Expected TCP address");
+    const socket = connect({ host: "127.0.0.1", port: address.port });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        socket.on("error", reject);
+        socket.on("close", () => resolve());
+        // Leave the headers incomplete so the request stalls on the wire.
+        socket.on("connect", () => socket.write("GET /health HTTP/1.1\r\nHost: localhost\r\n"));
+        socket.setTimeout(2000, () => {
+          socket.destroy();
+          reject(new Error("Server did not close the stalled connection"));
+        });
+      });
+      expect(socket.destroyed).toBe(true);
+    } finally {
+      socket.destroy();
+      await app.close();
+    }
   });
 });

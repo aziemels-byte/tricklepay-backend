@@ -1,6 +1,6 @@
 # API Error Codes
 
-Every API failure returned by the TricklePay backend includes a stable, machine-readable `code` alongside a human-readable message. This allows client developers to build robust error handling and branch on error categories without having to parse human-readable text.
+API errors include a stable, machine-readable `code` alongside a human-readable message, allowing clients to branch without parsing message text. The `/ready` probe uses the separate response bodies documented in [Health Endpoint Semantics](../README.md#health-endpoint-semantics).
 
 ## Log Redaction Behaviour
 
@@ -89,4 +89,6 @@ The backend defines and returns the following error codes based on the HTTP stat
 - `REQUEST_ERROR`
   - **Returned When:** The request fails with any other 4xx client error (e.g., HTTP statuses `401`, `403`, `409`, etc.) that is not explicitly a `VALIDATION_ERROR` or `NOT_FOUND`.
 - `INTERNAL_SERVER_ERROR`
-  - **Returned When:** An unexpected server-side error occurs (HTTP status `500` and above). The original error message is logged internally with the request ID, but the client receives a safe, redacted message.
+  - **Returned When:** An unexpected server-side error occurs (HTTP status `500` and above), except for the database-unavailability cases below. The original error message is logged internally with the request ID, but the client receives a safe, redacted message.
+- `SERVICE_UNAVAILABLE`
+  - **Returned When:** A database-backed request fails with a recognized connection, pool, or query timeout error. The response has HTTP status `503`, the generic message `internal server error`, and `Retry-After: 30`. Other server errors retain `INTERNAL_SERVER_ERROR`. The `/ready` probe uses its separately documented probe response body.

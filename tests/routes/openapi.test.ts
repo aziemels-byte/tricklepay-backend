@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { vi } from "vitest";
 
+import { rootRoutes } from "../../src/routes/root.js";
+import { metricsRoutes } from "../../src/routes/metrics.js";
+
 import { statusRoutes } from "../../src/routes/status.js";
 
 import { streamRoutes } from "../../src/routes/streams.js";
@@ -10,8 +13,33 @@ import { buildServer } from "../../src/server.js";
 
 async function getSpec() {
   const app = await buildServer();
+  await app.register(rootRoutes({
+    port: 3000,
+    host: "0.0.0.0",
+    publicBaseUrl: "http://localhost:3000",
+    databaseUrl: "postgresql://localhost/test",
+    network: "testnet",
+    networkPassphrase: "Test SDF Network ; September 2015",
+    rpcUrl: "https://soroban-testnet.stellar.org",
+    contractId: "CDMB62RVYAXJJNYYH7K442SHSAJIXTZ6K7JANGSMQF2T7MHCTVSK75SW",
+    pollIntervalMs: 5000,
+    startLedger: 0,
+    maxBackoffMs: 60000,
+    maxPagesPerTick: 1000,
+    summaryCacheTtlMs: 2000,
+    bodyLimit: 1048576,
+    connectionTimeoutMs: 10000,
+    keepAliveTimeoutMs: 72000,
+    requestTimeoutMs: 10000,
+    queryStringLimit: 2048,
+    compressionThresholdBytes: 1024,
+    trustedProxies: [],
+    readinessRetryAfterSeconds: 5,
+    enableDocsUi: true,
+  }));
   await app.register(streamRoutes);
   await app.register(statusRoutes);
+  await app.register(metricsRoutes);
   await app.ready();
 
   const response = await app.inject({ method: "GET", url: "/docs/json" });
@@ -265,6 +293,14 @@ describe("GET /docs/json (OpenAPI spec)", () => {
       spec.components as { schemas?: Record<string, unknown> }
     )?.schemas ?? {};
     expect(schemas).toHaveProperty("ApiError");
+    expect(schemas.ApiError).toMatchObject({
+      properties: {
+        code: {
+          type: "string",
+          enum: expect.arrayContaining(["SERVICE_UNAVAILABLE", "INTERNAL_SERVER_ERROR"]),
+        },
+      },
+    });
   });
 
   it("GET /streams/:id declares 404 response", async () => {
@@ -336,7 +372,13 @@ describe("README endpoint table", () => {
     }
     const readme = (await import("node:fs/promises")).readFile(new URL("../../README.md", import.meta.url), "utf8");
     const actual = new Set<string>();
-    for (const line of (await readme).split("\n")) { const m=line.match(/^\| `?(GET|POST|PUT|PATCH|DELETE|HEAD)`? \| `([^`]+)` \|/); if (m) actual.add(`${m[1]} ${m[2]}`); }
+    for (const line of (await readme).split("\n")) {
+      const match = line.match(/^\| `?(GET|POST|PUT|PATCH|DELETE|HEAD)`? \| `([^`]+)` \|/);
+      if (match) {
+        const path = match[2].replace(/:([a-zA-Z0-9_]+)/g, "{$1}");
+        actual.add(`${match[1]} ${path}`);
+      }
+    }
     expect([...expected].filter((x) => !actual.has(x))).toEqual([]);
     expect([...actual].filter((x) => !expected.has(x))).toEqual([]);
   });

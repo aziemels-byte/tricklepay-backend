@@ -411,7 +411,7 @@ describe("GET /streams", () => {
 
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ limit: 50, offset: 0 }),
+      expect.objectContaining({ limit: 50, offset: 0 }), expect.any(BigInt),
     );
     expect(response.json()).toMatchObject({ limit: 50, offset: 0 });
   });
@@ -422,7 +422,7 @@ describe("GET /streams", () => {
     const response = await listRequest(`/streams?sender=${encodeURIComponent(padded)}`);
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ sender: ACCOUNT }),
+      expect.objectContaining({ sender: ACCOUNT }), expect.any(BigInt),
     );
   });
 
@@ -433,7 +433,7 @@ describe("GET /streams", () => {
     );
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ token: CONTRACT }),
+      expect.objectContaining({ token: CONTRACT }), expect.any(BigInt),
     );
   });
 
@@ -443,7 +443,7 @@ describe("GET /streams", () => {
     const response = await listRequest(`/streams?token=${encodeURIComponent(padded)}`);
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ token: CONTRACT }),
+      expect.objectContaining({ token: CONTRACT }), expect.any(BigInt),
     );
   });
 
@@ -471,7 +471,7 @@ describe("GET /streams token filter", () => {
     const response = await listRequest("/streams");
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.not.objectContaining({ token: expect.anything() }),
+      expect.not.objectContaining({ token: expect.anything() }), expect.any(BigInt),
     );
   });
 
@@ -504,7 +504,7 @@ describe("GET /streams token filter", () => {
     const response = await listRequest(`/streams?token=${CONTRACT}&includeTotal=true`);
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.countStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ token: CONTRACT }),
+      expect.objectContaining({ token: CONTRACT }), expect.any(BigInt),
     );
     expect(response.json()).toHaveProperty("total", 3);
   });
@@ -514,7 +514,7 @@ describe("GET /streams token filter", () => {
     const response = await listRequest(`/streams?sender=${ACCOUNT}&token=${CONTRACT}`);
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ sender: ACCOUNT, token: CONTRACT }),
+      expect.objectContaining({ sender: ACCOUNT, token: CONTRACT }), expect.any(BigInt),
     );
   });
 
@@ -523,7 +523,7 @@ describe("GET /streams token filter", () => {
     const response = await listRequest(`/streams?recipient=${ACCOUNT}&token=${CONTRACT}`);
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ recipient: ACCOUNT, token: CONTRACT }),
+      expect.objectContaining({ recipient: ACCOUNT, token: CONTRACT }), expect.any(BigInt),
     );
   });
 
@@ -535,10 +535,10 @@ describe("GET /streams token filter", () => {
     );
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ token: CONTRACT, cancelled: true }),
+      expect.objectContaining({ token: CONTRACT, cancelled: true }), expect.any(BigInt),
     );
     expect(streamsRepo.countStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ token: CONTRACT, cancelled: true }),
+      expect.objectContaining({ token: CONTRACT, cancelled: true }), expect.any(BigInt),
     );
   });
 
@@ -547,7 +547,7 @@ describe("GET /streams token filter", () => {
     const response = await listRequest(`/streams?token=${CONTRACT}&limit=25&offset=50`);
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ token: CONTRACT, limit: 25, offset: 50 }),
+      expect.objectContaining({ token: CONTRACT, limit: 25, offset: 50 }), expect.any(BigInt),
     );
     const body = response.json();
     expect(body).toHaveProperty("limit", 25);
@@ -568,7 +568,7 @@ describe("GET /streams sender filter", () => {
     const response = await listRequest("/streams");
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.not.objectContaining({ sender: expect.anything() }),
+      expect.not.objectContaining({ sender: expect.anything() }), expect.any(BigInt),
     );
   });
 
@@ -602,7 +602,7 @@ describe("GET /streams sender filter", () => {
     const response = await listRequest(`/streams?sender=${ACCOUNT}&includeTotal=true`);
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.countStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ sender: ACCOUNT }),
+      expect.objectContaining({ sender: ACCOUNT }), expect.any(BigInt),
     );
     expect(response.json()).toHaveProperty("total", 3);
   });
@@ -625,7 +625,7 @@ describe("GET /streams sender filter", () => {
     const response = await listRequest(`/streams?sender=${ACCOUNT.toLowerCase()}`);
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ sender: ACCOUNT }),
+      expect.objectContaining({ sender: ACCOUNT }), expect.any(BigInt),
     );
   });
 });
@@ -644,7 +644,7 @@ describe("GET /streams offset ceiling", () => {
     const response = await listRequest("/streams?offset=10000");
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ limit: 50, offset: 10000 }),
+      expect.objectContaining({ limit: 50, offset: 10000 }), expect.any(BigInt),
     );
   });
 
@@ -653,7 +653,7 @@ describe("GET /streams offset ceiling", () => {
     const response = await listRequest("/streams?limit=10&offset=20");
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ limit: 10, offset: 20 }),
+      expect.objectContaining({ limit: 10, offset: 20 }), expect.any(BigInt),
     );
   });
 });
@@ -664,7 +664,7 @@ describe("GET /streams invalid offset (#134)", () => {
     const response = await listRequest("/streams?offset=abc");
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ offset: 0 }),
+      expect.objectContaining({ offset: 0 }), expect.any(BigInt),
     );
   });
 
@@ -673,7 +673,7 @@ describe("GET /streams invalid offset (#134)", () => {
     const response = await listRequest("/streams?offset=-5");
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ offset: 0 }),
+      expect.objectContaining({ offset: 0 }), expect.any(BigInt),
     );
   });
 
@@ -682,7 +682,7 @@ describe("GET /streams invalid offset (#134)", () => {
     const response = await listRequest("/streams?offset=");
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ offset: 0 }),
+      expect.objectContaining({ offset: 0 }), expect.any(BigInt),
     );
   });
 
@@ -691,7 +691,7 @@ describe("GET /streams invalid offset (#134)", () => {
     const response = await listRequest("/streams?offset=3.7");
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ offset: 3 }),
+      expect.objectContaining({ offset: 3 }), expect.any(BigInt),
     );
   });
 });
@@ -712,7 +712,7 @@ describe("GET /streams includeTotal", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual(expect.objectContaining({ total: 7 }));
     expect(streamsRepo.countStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ cancelled: undefined, cursor: undefined }),
+      expect.objectContaining({ cancelled: undefined, cursor: undefined }), expect.any(BigInt),
     );
   });
 });
@@ -731,7 +731,7 @@ describe("GET /streams cancelled filter", () => {
     const response = await listRequest("/streams?cancelled=true");
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ cancelled: true }),
+      expect.objectContaining({ cancelled: true }), expect.any(BigInt),
     );
   });
 
@@ -740,7 +740,7 @@ describe("GET /streams cancelled filter", () => {
     const response = await listRequest("/streams?cancelled=false");
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ cancelled: false }),
+      expect.objectContaining({ cancelled: false }), expect.any(BigInt),
     );
   });
 
@@ -750,7 +750,7 @@ describe("GET /streams cancelled filter", () => {
     const response = await listRequest("/streams?cancelled=true&includeTotal=true");
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.countStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ cancelled: true }),
+      expect.objectContaining({ cancelled: true }), expect.any(BigInt),
     );
   });
 
@@ -760,7 +760,7 @@ describe("GET /streams cancelled filter", () => {
     const response = await listRequest("/streams?cancelled=false&includeTotal=true");
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.countStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ cancelled: false }),
+      expect.objectContaining({ cancelled: false }), expect.any(BigInt),
     );
   });
 });
@@ -772,7 +772,7 @@ describe("GET /streams cursor pagination", () => {
     const response = await listRequest(`/streams?cursor=${encodeURIComponent(cursor)}`);
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ cursor: 50n }),
+      expect.objectContaining({ cursor: 50n }), expect.any(BigInt),
     );
   });
 
@@ -846,8 +846,8 @@ describe("GET /streams cursor pagination", () => {
     );
     expect(response.statusCode).toBe(200);
     const expectedFilter = expect.objectContaining({ cancelled: false, cursor: 77n });
-    expect(streamsRepo.listStreams).toHaveBeenCalledWith(expectedFilter);
-    expect(streamsRepo.countStreams).toHaveBeenCalledWith(expectedFilter);
+    expect(streamsRepo.listStreams).toHaveBeenCalledWith(expectedFilter, expect.any(BigInt));
+    expect(streamsRepo.countStreams).toHaveBeenCalledWith(expectedFilter, expect.any(BigInt));
   });
 });
 
@@ -1008,7 +1008,7 @@ describe("GET /streams recipient filter (#136)", () => {
 
     await listRequest(`/streams?recipient=${RECIPIENT}`);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ recipient: RECIPIENT }),
+      expect.objectContaining({ recipient: RECIPIENT }), expect.any(BigInt),
     );
   });
 
@@ -1027,7 +1027,7 @@ describe("GET /streams recipient filter (#136)", () => {
     const response = await listRequest(`/streams?recipient=${encodeURIComponent(padded)}`);
     expect(response.statusCode).toBe(200);
     expect(streamsRepo.listStreams).toHaveBeenCalledWith(
-      expect.objectContaining({ recipient: RECIPIENT }),
+      expect.objectContaining({ recipient: RECIPIENT }), expect.any(BigInt),
     );
   });
 });

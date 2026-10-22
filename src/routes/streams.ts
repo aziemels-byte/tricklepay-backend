@@ -210,6 +210,7 @@ interface ListStreamsQuery {
   offset?: string;
   includeTotal?: string;
   cancelled?: string;
+  status?: StreamStatus;
   cursor?: string;
 }
 

@@ -458,6 +458,24 @@ describe("statusWhere", () => {
   });
 });
 
+describe("stream status filtering uses a shared evaluation time", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each(["pending", "streaming", "completed", "cancelled"] as const)(
+    "applies the %s predicate to both listing and counting",
+    async (status) => {
+      const find = vi.spyOn(prisma.stream, "findMany").mockResolvedValue([]);
+      const count = vi.spyOn(prisma.stream, "count").mockResolvedValue(0);
+      const now = 1000n;
+      await listStreams({ status }, now);
+      await countStreams({ status }, now);
+      const expected = statusWhere(status, now);
+      expect(find.mock.calls[0][0]?.where).toEqual(expected);
+      expect(count.mock.calls[0][0]?.where).toEqual(expected);
+    },
+  );
+});
+
 describe("streams repository filter combinations", () => {
   beforeEach(() => {
     vi.restoreAllMocks();

@@ -16,6 +16,9 @@ import Fastify, {
 import { buildSwaggerConfig, swaggerUiConfig } from "./api-spec.js";
 
 import {
+  DEFAULT_CONNECTION_TIMEOUT_MS,
+  DEFAULT_KEEP_ALIVE_TIMEOUT_MS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
   DEFAULT_RATE_LIMIT_MAX,
   DEFAULT_RATE_LIMIT_WINDOW_MS,
   DEFAULT_READINESS_RETRY_AFTER_SECONDS,
@@ -29,6 +32,8 @@ import { errorCodeForStatus } from "./error-redaction.js";
 import { registerErrorHandlers } from "./error-handlers.js";
 
 import { registerHealthRoutes } from "./health-routes.js";
+
+import { registerIndexerLagHook } from "./indexer-lag-hook.js";
 
 import { logger } from "./logger.js";
 
@@ -75,9 +80,9 @@ export async function buildServer(config?: Partial<Config>): Promise<FastifyInst
     // satisfies that interface at runtime.
     loggerInstance: logger as FastifyBaseLogger,
     bodyLimit: config?.bodyLimit,
-    connectionTimeout: config?.connectionTimeoutMs,
-    keepAliveTimeout: config?.keepAliveTimeoutMs,
-    requestTimeout: config?.requestTimeoutMs,
+    connectionTimeout: config?.connectionTimeoutMs ?? DEFAULT_CONNECTION_TIMEOUT_MS,
+    keepAliveTimeout: config?.keepAliveTimeoutMs ?? DEFAULT_KEEP_ALIVE_TIMEOUT_MS,
+    requestTimeout: config?.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
     // Forwarded headers (X-Forwarded-For, X-Forwarded-Proto) are honored only
     // when the direct connection peer is an explicitly trusted proxy (#75).
     // Without configuration the socket address is used as-is, so a direct
@@ -109,7 +114,10 @@ export async function buildServer(config?: Partial<Config>): Promise<FastifyInst
   // footgun. The parser itself must never throw: it runs during routing, where
   // an exception bypasses Fastify's error handler and crashes the process.
   app.addHook("onRequest", async (request, reply) => {
-    const rawQuery = request.raw.url?.split("?")[1] ?? "";
+    const rawUrl = request.raw.url ?? "";
+    // Match the router's delimiters and retain the complete raw query.
+    const queryStart = rawUrl.search(/[?#]/);
+    const rawQuery = queryStart < 0 ? "" : rawUrl.slice(queryStart + 1);
 
     if (config?.queryStringLimit && rawQuery.length > config.queryStringLimit) {
       void reply.status(400).send({
@@ -193,7 +201,7 @@ export async function buildServer(config?: Partial<Config>): Promise<FastifyInst
       ? true
       : configuredCorsOrigin === ""
         ? false
-        : configuredCorsOrigin;
+        : [configuredCorsOrigin];
 
   // The web client fetches this API from the browser, so it is always a
   // cross-origin caller once the two run on separate ports or hosts. The data

@@ -84,6 +84,7 @@ describe("CORS origin handling", () => {
       headers: {
         Origin: "https://app.example.com",
         "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "Content-Type",
       },
     });
     await app.close();
@@ -93,6 +94,6 @@ describe("CORS origin handling", () => {
       "https://app.example.com",
     );
     expect(response.headers["access-control-allow-methods"]).toContain("GET");
-    expect(response.headers["access-control-allow-headers"]).toBeTruthy();
+    expect(response.headers["access-control-allow-headers"]).toBe("Content-Type");
   });
 });
