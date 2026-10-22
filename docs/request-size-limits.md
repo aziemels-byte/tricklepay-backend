@@ -10,14 +10,14 @@ Three separate limits are enforced:
 2. **Query string limit**: Maximum length of the URL query string portion.
 3. **Request rate limit**: Maximum requests from one client IP in a fixed time window.
 
-All three limits are configurable via the four environment variables below and have defaults for typical API usage.
+The three request limits use the four environment variables below.
 
 ## Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `BODY_LIMIT` | `1048576` (1 MB) | Maximum request body size in bytes |
-| `QUERY_STRING_LIMIT` | `2048` | Maximum raw URL query string length (JavaScript string length) |
+| `BODY_LIMIT` | `1048576` (1 MiB) | Maximum request body size in bytes |
+| `QUERY_STRING_LIMIT` | `2048` | Maximum raw URL query string length (JavaScript string length); `0` disables this check |
 | `RATE_LIMIT_MAX` | `100` | Maximum requests per client IP per rate-limit window |
 | `RATE_LIMIT_WINDOW_MS` | `60000` (1 minute) | Duration of the fixed request rate-limit window in milliseconds |
 
@@ -26,10 +26,10 @@ All three limits are configurable via the four environment variables below and h
 Add the variables to your `.env` file or export them in your environment:
 
 ```bash
-# Allow up to 2MB request bodies
+# Configure a 2 MiB body limit for future body-bearing routes
 BODY_LIMIT=2097152
 
-# Allow up to 4KB query strings
+# Allow up to 4096 raw query-string code units
 QUERY_STRING_LIMIT=4096
 
 # Allow 100 requests per client IP per minute
@@ -37,7 +37,7 @@ RATE_LIMIT_MAX=100
 RATE_LIMIT_WINDOW_MS=60000
 ```
 
-**Units:** `BODY_LIMIT` is in bytes; `QUERY_STRING_LIMIT` is checked against the raw query string's JavaScript `.length` (UTF-16 code units, not a byte count). `RATE_LIMIT_MAX` is a request count and `RATE_LIMIT_WINDOW_MS` is in milliseconds. For body sizes, 1 KiB = 1024 bytes and 1 MiB = 1048576 bytes.
+**Units:** `BODY_LIMIT` is in bytes; `QUERY_STRING_LIMIT` is checked against the raw query string's JavaScript `.length` (UTF-16 code units, not a byte count). `RATE_LIMIT_MAX` is a request count and `RATE_LIMIT_WINDOW_MS` is in milliseconds. 1 KiB = 1024 bytes and 1 MiB = 1048576 bytes.
 
 ## Body Size Limit
 
@@ -51,7 +51,7 @@ Fastify configures a maximum request-body size using `config.bodyLimit`. **The c
 ```json
 {
   "code": "REQUEST_ERROR",
-  "error": "Payload too large",
+  "error": "Request body is too large",
   "requestId": "req-1234"
 }
 ```
@@ -75,13 +75,13 @@ The query string limit applies to the portion of the URL after the `?` character
 }
 ```
 
-**Behavior:** The request is rejected in the `onRequest` hook before routing. No endpoint logic runs.
+**Behavior:** The `onRequest` hook rejects the request before its route handler and database access. Fastify has already parsed the query string during routing; this check does not run before parsing.
 
 ### Example
 
 ```bash
 # Query the real GET /streams route with over 2,048 query characters.
-curl -i "http://localhost:3000/streams?$(python3 -c 'print("filter=" + "x" * 3000)')"
+curl -i "http://localhost:3000/streams?$(node -e 'process.stdout.write("sender=" + "x".repeat(3000))')"
 
 # Response: 400 Bad Request
 # {"code":"VALIDATION_ERROR","error":"query string too long","requestId":"..."}
@@ -89,7 +89,7 @@ curl -i "http://localhost:3000/streams?$(python3 -c 'print("filter=" + "x" * 300
 
 ### What Counts Toward the Limit
 
-Only the portion after the first `?` in the raw request URL is measured; the path, hostname, and protocol are excluded. The server uses JavaScript `rawQuery.length`, so the limit counts UTF-16 code units of the raw query string rather than the decoded parameters or their byte size.
+The entire portion after the first `?` in the raw request URL is measured, including any additional literal `?` characters; the path, hostname, and protocol are excluded. The server uses JavaScript `rawQuery.length`, so the limit counts UTF-16 code units of the raw query string rather than the decoded parameters or their byte size.
 
 ## Request Rate Limit
 
@@ -97,18 +97,15 @@ Each client IP is allowed `RATE_LIMIT_MAX` requests during a fixed window of `RA
 
 The in-memory limiter is local to one server process, so clients behind a load balancer may receive a separate allowance from each instance. Fastify uses the direct peer address unless the proxy is listed in `TRUSTED_PROXIES`; only configure trusted proxies when they overwrite forwarded client-IP headers.
 
-**Example:**
-```
-http://localhost:3000/streams?limit=50&offset=100
-                              ^^^^^^^^^^^^^^^^^^^^^^^^^
-                              This part is measured (query characters, not bytes)
-```
+For `http://localhost:3000/streams?limit=50&offset=100`, only `limit=50&offset=100` is measured (19 code units). The pathname and the leading `?` do not count.
 
 ## Why These Limits Exist
 
 1. **Body limit:** Guards against unbounded request bodies if the service later adds body-bearing endpoints. No current API route accepts them.
 
 2. **Query string limit:** Prevents abuse via extremely long URLs. Web servers and proxies often have their own URL length limits (commonly 4KB-8KB), and excessively long query strings can bypass caching or cause parsing issues.
+
+3. **Rate limit:** Bounds request frequency per client IP and server process.
 
 ## Debugging Limit Errors
 
@@ -133,7 +130,7 @@ The check uses the **raw** query string (including percent-encoded characters). 
 The request ID in the error response matches the `reqId` field in structured logs. Search for that ID to see the full request context:
 
 ```bash
-# Pino writes structured logs to stdout, not logs/app.log.
+# By default Pino writes JSON logs to stdout.
 # Example when the server output has been redirected to a file:
 grep '"reqId":"req-1234"' server.stdout.log
 
@@ -144,7 +141,7 @@ docker compose logs api | grep '"reqId":"req-1234"'
 ## Implementation Details
 
 - **Body limit:** Enforced by Fastify's built-in `bodyLimit` option, which reads from `config.bodyLimit` (no current route consumes a body).
-- **Query string limit:** Enforced by a custom `onRequest` hook in `src/server.ts`, using `rawQuery.length` before route dispatch.
+- **Query string limit:** Enforced by a custom `onRequest` hook in `src/server.ts`, using `rawQuery.length` after routing/parsing but before the route handler.
 - **Rate limit:** Enforced by the per-IP fixed-window `onRequest` hook in `src/server.ts`, returning HTTP 429 and a `Retry-After` header.
 
 See `src/config.ts` for the default values and `src/server.ts` for the rejection logic.
