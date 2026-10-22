@@ -23,18 +23,18 @@ The three request limits use the four environment variables below.
 
 ### Setting Custom Limits
 
-Add the variables to your `.env` file or export them in your environment:
+For a Bash shell, export the variables before starting the server as shown below. In `.env`, use the same assignments without `export`:
 
 ```bash
 # Configure a 2 MiB body limit for future body-bearing routes
-BODY_LIMIT=2097152
+export BODY_LIMIT=2097152
 
 # Allow up to 4096 raw query-string code units
-QUERY_STRING_LIMIT=4096
+export QUERY_STRING_LIMIT=4096
 
 # Allow 100 requests per client IP per minute
-RATE_LIMIT_MAX=100
-RATE_LIMIT_WINDOW_MS=60000
+export RATE_LIMIT_MAX=100
+export RATE_LIMIT_WINDOW_MS=60000
 ```
 
 **Units:** `BODY_LIMIT` is in bytes; `QUERY_STRING_LIMIT` is checked against the raw query string's JavaScript `.length` (UTF-16 code units, not a byte count). `RATE_LIMIT_MAX` is a request count and `RATE_LIMIT_WINDOW_MS` is in milliseconds. 1 KiB = 1024 bytes and 1 MiB = 1048576 bytes.
@@ -60,7 +60,7 @@ Fastify configures a maximum request-body size using `config.bodyLimit`. **The c
 
 ## Query String Limit
 
-The query string limit applies to the portion of the URL after the `?` character, including all parameters and their values.
+For ordinary URLs, the query string limit applies to the portion after `?`, including all parameters and their values. For compatibility with the router's handling of raw request targets, a literal `#` also acts as a query delimiter: the first literal `?` or `#` wins. Browser URL fragments normally are not sent to the server, and an encoded `%23` is not a delimiter.
 
 ### When the Limit is Exceeded
 
@@ -80,16 +80,17 @@ The query string limit applies to the portion of the URL after the `?` character
 ### Example
 
 ```bash
+# With the server using its default QUERY_STRING_LIMIT=2048:
 # Query the real GET /streams route with over 2,048 query characters.
-curl -i "http://localhost:3000/streams?$(node -e 'process.stdout.write("sender=" + "x".repeat(3000))')"
+curl -i -H 'x-request-id: req-1234' "http://localhost:3000/streams?$(node -e 'process.stdout.write("sender=" + "x".repeat(3000))')"
 
 # Response: 400 Bad Request
-# {"code":"VALIDATION_ERROR","error":"query string too long","requestId":"..."}
+# {"code":"VALIDATION_ERROR","error":"query string too long","requestId":"req-1234"}
 ```
 
 ### What Counts Toward the Limit
 
-The entire portion after the first `?` in the raw request URL is measured, including any additional literal `?` characters; the path, hostname, and protocol are excluded. The server uses JavaScript `rawQuery.length`, so the limit counts UTF-16 code units of the raw query string rather than the decoded parameters or their byte size.
+The entire portion after the first `?` or literal `#` in the raw request URL is measured, including any additional literal `?` or `#` characters; the path, hostname, and protocol are excluded. The server uses JavaScript `rawQuery.length`, so the limit counts UTF-16 code units of the raw query string rather than the decoded parameters or their byte size.
 
 ## Request Rate Limit
 
@@ -111,7 +112,7 @@ For `http://localhost:3000/streams?limit=50&offset=100`, only `limit=50&offset=1
 
 If a legitimate request is rejected:
 
-1. **Check the request:** For GET requests, inspect only the part of the raw URL after `?`; its JavaScript string length must fit `QUERY_STRING_LIMIT`. The body limit applies to no current route.
+1. **Check the request:** For GET requests, inspect only the part of the raw request URL after its first `?` or literal `#`; its JavaScript string length must fit `QUERY_STRING_LIMIT`. The body limit applies to no current route.
 2. **Reduce the query:** Use supported pagination parameters (`limit`, `offset` or `cursor`), avoid oversized filters, and remove unnecessary query parameters. The API does not offer a POST alternative.
 3. **Adjust the appropriate limit:** If the query is valid and legitimately needs more space, raise `QUERY_STRING_LIMIT`; changes to `BODY_LIMIT` do not affect GET query strings.
 
@@ -127,11 +128,19 @@ node -e 'console.log("limit=50&offset=100".length)'
 The check uses the **raw** query string (including percent-encoded characters). The numeric result above is for the ASCII example and is not a body byte count.
 
 **Inspecting rejected requests (server logs):**
-The request ID in the error response matches the `reqId` field in structured logs. Search for that ID to see the full request context:
+The request ID in the error response matches the `reqId` field in structured logs. The GET example above supplies `req-1234` explicitly; requests without a safe `x-request-id` receive a generated UUID. A completion entry includes these fields (timestamp, process, host and duration fields omitted):
+
+```json
+{"level":30,"reqId":"req-1234","res":{"statusCode":400},"msg":"request completed"}
+```
+
+Capture process output and search for that ID:
 
 ```bash
 # By default Pino writes JSON logs to stdout.
-# Example when the server output has been redirected to a file:
+# Start the server with JSON output redirected to a file:
+QUERY_STRING_LIMIT=2048 LOG_PRETTY=false npm run dev > server.stdout.log 2>&1
+# In another shell, run the GET example above, then search the captured output:
 grep '"reqId":"req-1234"' server.stdout.log
 
 # For a containerized deployment:
@@ -141,7 +150,7 @@ docker compose logs api | grep '"reqId":"req-1234"'
 ## Implementation Details
 
 - **Body limit:** Enforced by Fastify's built-in `bodyLimit` option, which reads from `config.bodyLimit` (no current route consumes a body).
-- **Query string limit:** Enforced by a custom `onRequest` hook in `src/server.ts`, using `rawQuery.length` after routing/parsing but before the route handler.
+- **Query string limit:** Enforced by a custom `onRequest` hook in `src/server.ts`, using `rawQuery.length` after routing/query parsing but before the route handler. Ordinary URLs use `?`; to match the `find-my-way` router's raw-target handling, the guard uses `search(/[?#]/)` and `slice` to measure everything after the first literal `?` or `#`. Percent-encoded `%23` is data, not a delimiter.
 - **Rate limit:** Enforced by the per-IP fixed-window `onRequest` hook in `src/server.ts`, returning HTTP 429 and a `Retry-After` header.
 
 See `src/config.ts` for the default values and `src/server.ts` for the rejection logic.
