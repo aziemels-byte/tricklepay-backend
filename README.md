@@ -160,7 +160,7 @@ curl http://localhost:3000/docs/yaml > openapi.yaml
 | --- | --- | --- |
 | `GET` | `/` | Service index: `name`, `description`, `network`, `contractId`, and the endpoint list (no `version` property). |
 | `GET` | `/health` | Liveness check. Returns 200 with the service version; performs no database read. |
-| `GET` | `/ready` | Readiness check. Returns 503 when PostgreSQL is unavailable or the stored indexer position has not advanced past `lastLedger = 0`. Event application is not required. |
+| `GET` | `/ready` | Readiness check. Returns 503 when the database health check fails or no positive indexer checkpoint (`lastLedger > 0`) is stored. Event application is not required. |
 | `GET` | `/status` | Indexer progress against the chain. Response includes `Cache-Control: no-store` to prevent stale lag readings. |
 | `GET` | `/streams` | List streams. Query params: `sender`, `recipient`, `token`, `limit`, `offset`, `includeTotal`, `cancelled`, `cursor`. Address filters accept lowercase and padded spellings and are normalized before matching. `total` is only included when `includeTotal=true`; `cancelled` filters by cancellation status when given, and is omitted to return both. |
 | `GET` | `/streams/summary` | Aggregate counts and exact amounts by stream status. Uses the configurable cache window; see [Stream Summary Endpoint](#stream-summary-endpoint). |
@@ -300,14 +300,15 @@ curl -s http://localhost:3000/streams/invalid | jq
 `/health` is a liveness probe: it returns 200 with the service version and
 performs no database read, so it stays green even when dependencies are down.
 
-`/ready` is a readiness probe. It verifies database connectivity and checks
-that `IndexerState.lastLedger > 0` via `hasIndexerProgress`. This is a stored
-ledger-position check, **not a check that any contract events have been
-applied**: when the indexer starts at the latest ledger, a successful poll on
-a quiet chain can provide a positive checkpoint with no stream events. Before
-that progress is stored, or if the database is unavailable, `/ready` returns
-503. Liveness is unaffected: `/health` continues to return 200 independently
-of indexer or database status.
+`/ready` checks database connectivity and requires a stored
+`IndexerState.lastLedger > 0`, as evaluated by `hasIndexerProgress`. This is
+a ledger-position check: starting at the latest ledger can store a positive
+checkpoint after a successful poll even when no contract events were applied.
+A configured backfill can likewise start with a positive ledger floor. A
+missing checkpoint or `lastLedger = 0` returns 503. Readiness does not impose
+a lag threshold or prove that every historical stream has been indexed.
+Liveness is unaffected: `/health` continues to return 200 independently of
+database or indexer status.
 
 The service exposes two health endpoints that answer different questions. Wire them to separate probes in your orchestration platform.
 
