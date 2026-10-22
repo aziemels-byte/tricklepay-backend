@@ -254,7 +254,7 @@ Both figures are as of the last completed poll — the API never queries the cha
 
 ## Error Responses
 
-All error responses follow a consistent JSON shape:
+API errors normally use the JSON shape below. Readiness failures use the probe response bodies documented in [Health Endpoint Semantics](#health-endpoint-semantics).
 
 ```json
 {
@@ -326,7 +326,7 @@ The service exposes two health endpoints that answer different questions. Wire t
 ```json
 {
   "status": "ok",
-  "version": "1.0.0"
+  "version": "0.1.0"
 }
 ```
 
@@ -353,12 +353,22 @@ The service exposes two health endpoints that answer different questions. Wire t
 }
 ```
 
-**Response (unhealthy):**
+**Response (503, database unavailable):**
 ```json
 {
   "status": "not_ready",
   "database": "down",
-  "error": "Connection refused"
+  "error": "database unavailable"
+}
+```
+
+The database health check returns `"timeout"` instead if its timeout expires. With a reachable database but no positive checkpoint, the 503 response is:
+
+```json
+{
+  "status": "not_ready",
+  "database": "up",
+  "error": "indexer has not made progress"
 }
 ```
 
@@ -949,9 +959,11 @@ they answer different questions:
   soon as the process is up and performs no database read. A liveness probe
   should restart the container if this stops responding — it means the process
   itself is wedged.
-- **Readiness — `GET /ready`.** Checks the database connection and returns
-  `200` with the current indexer lag when it succeeds, or
-  `503 {"status":"not_ready","database":"down"}` when Postgres is unreachable.
+- **Readiness — `GET /ready`.** Checks the database connection and the stored
+  `lastLedger > 0` checkpoint. Returns `200` with the current indexer lag only
+  when both checks pass; otherwise returns `503`, including when the database
+  is reachable but the checkpoint is missing or zero. See the exact response
+  bodies in [Health Endpoint Semantics](#health-endpoint-semantics).
   A readiness probe should take the instance out of load-balancer rotation on a
   503 without restarting it — the process is fine, a dependency isn't.
 
