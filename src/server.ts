@@ -83,9 +83,12 @@ export async function buildServer(config?: Partial<Config>): Promise<FastifyInst
     ajv: { customOptions: { removeAdditional: false } },
   });
 
-  // Enforce the query string length limit before routing.
+  // Routing has parsed the query; enforce its raw length before the handler.
   app.addHook("onRequest", async (request, reply) => {
-    const rawQuery = request.raw.url?.split("?")[1] ?? "";
+    const rawUrl = request.raw.url ?? "";
+    // Match the router, which also treats a literal # as a query delimiter.
+    const queryStart = rawUrl.search(/[?#]/);
+    const rawQuery = queryStart < 0 ? "" : rawUrl.slice(queryStart + 1);
     if (config?.queryStringLimit && rawQuery.length > config.queryStringLimit) {
       void reply.status(400).send({
         code: "VALIDATION_ERROR",
